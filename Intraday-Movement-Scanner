@@ -1,0 +1,199 @@
+import yfinance as yf
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+import warnings
+warnings.filterwarnings('ignore')
+
+class NSEStockAnalyzer:
+    def __init__(self, start_date='2022-01-01'):
+        self.start_date = start_date
+        self.end_date = datetime.now().strftime('%Y-%m-%d')
+
+        # Popular NSE stocks list (add more as needed)
+        self.nse_stocks = [
+            'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'HINDUNILVR.NS',
+            'ICICIBANK.NS', 'KOTAKBANK.NS', 'BHARTIARTL.NS', 'ITC.NS', 'LT.NS',
+            'AXISBANK.NS', 'ASIANPAINT.NS', 'MARUTI.NS', 'SUNPHARMA.NS', 'TITAN.NS',
+            'ULTRACEMCO.NS', 'NESTLEIND.NS', 'BAJFINANCE.NS', 'WIPRO.NS', 'ONGC.NS',
+            'NTPC.NS', 'POWERGRID.NS', 'TECHM.NS', 'HCLTECH.NS', 'SBIN.NS',
+            'ADANIPORTS.NS', 'COALINDIA.NS', 'TATASTEEL.NS', 'GRASIM.NS', 'JSWSTEEL.NS',
+            'INDUSINDBK.NS', 'BAJAJFINSV.NS', 'M&M.NS', 'DRREDDY.NS', 'CIPLA.NS',
+            'EICHERMOT.NS', 'APOLLOHOSP.NS', 'DIVISLAB.NS', 'BRITANNIA.NS', 'TATACONSUM.NS'
+        ]
+
+    def fetch_stock_data(self, symbol):
+        """Fetch stock data for a given symbol"""
+        try:
+            stock = yf.Ticker(symbol)
+            data = stock.history(start=self.start_date, end=self.end_date)
+            if data.empty:
+                return None
+
+            # Calculate daily returns
+            data['Daily_Return_Pct'] = ((data['Close'] - data['Open']) / data['Open']) * 100
+
+            # Calculate position within daily range
+            data['High_Low_Range'] = data['High'] - data['Low']
+            data['Close_to_High'] = (data['High'] - data['Close']) / data['High_Low_Range']
+            data['Close_to_Low'] = (data['Close'] - data['Low']) / data['High_Low_Range']
+
+            # Calculate rolling averages for volume (20-day)
+            data['Avg_Volume_20d'] = data['Volume'].rolling(window=20).mean()
+            data['Volume_Ratio'] = data['Volume'] / data['Avg_Volume_20d']
+
+            return data
+
+        except Exception as e:
+            print(f"Error fetching data for {symbol}: {e}")
+            return None
+
+    def analyze_stock_movement(self, data, symbol):
+        """Analyze stock for the specified criteria"""
+        if data is None or data.empty:
+            return []
+
+        results = []
+
+        for date, row in data.iterrows():
+            daily_return = row['Daily_Return_Pct']
+            volume_ratio = row['Volume_Ratio']
+            close_to_high = row['Close_to_High']
+            close_to_low = row['Close_to_Low']
+
+            # Skip if we don't have enough data for volume average
+            if pd.isna(volume_ratio):
+                continue
+
+            # Check if movement is between 3-5% (positive or negative)
+            if abs(daily_return) >= 3.0 and abs(daily_return) <= 5.0:
+
+                # For positive movement: check if close is near day high
+                if daily_return > 0 and close_to_high <= 0.15:  # Within 15% of high
+                    results.append({
+                        'Symbol': symbol.replace('.NS', ''),
+                        'Date': date.strftime('%Y-%m-%d'),
+                        'Movement_Type': 'Positive',
+                        'Daily_Return_Pct': round(daily_return, 2),
+                        'Open': round(row['Open'], 2),
+                        'High': round(row['High'], 2),
+                        'Low': round(row['Low'], 2),
+                        'Close': round(row['Close'], 2),
+                        'Close_Position': f"{round((1-close_to_high)*100, 1)}% from High",
+                        'Volume': int(row['Volume']),
+                        'Avg_Volume_20d': int(row['Avg_Volume_20d']),
+                        'Volume_Ratio': round(volume_ratio, 2),
+                        'Volume_vs_Avg': f"{round((volume_ratio-1)*100, 1)}% {'above' if volume_ratio > 1 else 'below'} avg"
+                    })
+
+                # For negative movement: check if close is near day low
+                elif daily_return < 0 and close_to_low <= 0.15:  # Within 15% of low
+                    results.append({
+                        'Symbol': symbol.replace('.NS', ''),
+                        'Date': date.strftime('%Y-%m-%d'),
+                        'Movement_Type': 'Negative',
+                        'Daily_Return_Pct': round(daily_return, 2),
+                        'Open': round(row['Open'], 2),
+                        'High': round(row['High'], 2),
+                        'Low': round(row['Low'], 2),
+                        'Close': round(row['Close'], 2),
+                        'Close_Position': f"{round(close_to_low*100, 1)}% from Low",
+                        'Volume': int(row['Volume']),
+                        'Avg_Volume_20d': int(row['Avg_Volume_20d']),
+                        'Volume_Ratio': round(volume_ratio, 2),
+                        'Volume_vs_Avg': f"{round((volume_ratio-1)*100, 1)}% {'above' if volume_ratio > 1 else 'below'} avg"
+                    })
+
+        return results
+
+    def run_analysis(self, symbols=None):
+        """Run the complete analysis"""
+        if symbols is None:
+            symbols = self.nse_stocks
+
+        all_results = []
+
+        print(f"Analyzing {len(symbols)} stocks from {self.start_date} to {self.end_date}")
+        print("Looking for 3-5% movements with closes near day high/low...")
+        print("-" * 80)
+
+        for i, symbol in enumerate(symbols, 1):
+            print(f"Processing {i}/{len(symbols)}: {symbol.replace('.NS', '')}")
+
+            data = self.fetch_stock_data(symbol)
+            results = self.analyze_stock_movement(data, symbol)
+            all_results.extend(results)
+
+        return pd.DataFrame(all_results)
+
+    def filter_high_volume_days(self, df, min_volume_ratio=1.5):
+        """Filter results to show only high volume days"""
+        return df[df['Volume_Ratio'] >= min_volume_ratio].copy()
+
+    def get_summary_stats(self, df):
+        """Get summary statistics"""
+        if df.empty:
+            return "No matching patterns found."
+
+        summary = {
+            'Total_Occurrences': len(df),
+            'Positive_Movements': len(df[df['Movement_Type'] == 'Positive']),
+            'Negative_Movements': len(df[df['Movement_Type'] == 'Negative']),
+            'Unique_Stocks': df['Symbol'].nunique(),
+            'Avg_Volume_Ratio': round(df['Volume_Ratio'].mean(), 2),
+            'Date_Range': f"{df['Date'].min()} to {df['Date'].max()}"
+        }
+
+        return summary
+
+# Usage Example
+def main():
+    # Initialize analyzer
+    analyzer = NSEStockAnalyzer(start_date='2022-01-01')
+
+    # Run analysis on all stocks
+    results_df = analyzer.run_analysis()
+
+    if not results_df.empty:
+        print(f"\nFound {len(results_df)} instances matching criteria")
+
+        # Display recent results
+        print("\n" + "="*100)
+        print("RECENT OCCURRENCES (Last 10)")
+        print("="*100)
+        recent_results = results_df.sort_values('Date', ascending=False).head(10)
+        for _, row in recent_results.iterrows():
+            print(f"\n{row['Symbol']} - {row['Date']} ({row['Movement_Type']} {row['Daily_Return_Pct']}%)")
+            print(f"  OHLC: {row['Open']} | {row['High']} | {row['Low']} | {row['Close']}")
+            print(f"  Close Position: {row['Close_Position']}")
+            print(f"  Volume: {row['Volume']:,} ({row['Volume_vs_Avg']})")
+
+        # Filter for high volume days
+        high_vol_df = analyzer.filter_high_volume_days(results_df, min_volume_ratio=2.0)
+        print(f"\n" + "="*100)
+        print(f"HIGH VOLUME DAYS (Volume > 2x avg): {len(high_vol_df)} occurrences")
+        print("="*100)
+
+        if not high_vol_df.empty:
+            for _, row in high_vol_df.head(10).iterrows():
+                print(f"\n{row['Symbol']} - {row['Date']} ({row['Movement_Type']} {row['Daily_Return_Pct']}%)")
+                print(f"  Volume Ratio: {row['Volume_Ratio']}x average")
+                print(f"  Close Position: {row['Close_Position']}")
+
+        # Summary statistics
+        print(f"\n" + "="*100)
+        print("SUMMARY STATISTICS")
+        print("="*100)
+        summary = analyzer.get_summary_stats(results_df)
+        for key, value in summary.items():
+            print(f"{key.replace('_', ' ')}: {value}")
+
+        # Save to CSV
+        results_df.to_csv('nse_stock_analysis_results.csv', index=False)
+        print(f"\nResults saved to 'nse_stock_analysis_results.csv'")
+
+    else:
+        print("No stocks found matching the criteria.")
+
+if __name__ == "__main__":
+    main()
