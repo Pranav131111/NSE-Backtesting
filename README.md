@@ -1,2 +1,5 @@
 # NSE-Backtesting
- A full-featured tool to estimate first 30-minute trading volumes and trade counts for NSE stocks, starting from Jan 1, 2022. It is ideal for intraday traders, quants, and market analysts looking to detect volume surges, high activity zones, and behavioral anomalies at market open.
+
+ Purpose: Scans NIFTY 50 stocks to identify 3–5% daily price movements with closes near daily highs/lows, and highlights high-volume trading days.
+
+ Purpose: Performs detailed analysis on NIFTY 500 stocks for identifying meaningful 3–5% price moves near extremes, enriched with volume metrics, summaries, and formatted outputs.
