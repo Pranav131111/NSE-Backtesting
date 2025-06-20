@@ -1,0 +1,289 @@
+import yfinance as yf
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+import warnings
+warnings.filterwarnings('ignore')
+
+class NSEStockAnalyzer:
+    def __init__(self, start_date='2022-01-01'):
+        self.start_date = start_date
+        self.end_date = datetime.now().strftime('%Y-%m-%d')
+
+        # NIFTY 500 stocks (major components - can be expanded)
+        self.nifty500_stocks = [
+            # NIFTY 50
+            'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'HINDUNILVR.NS',
+            'ICICIBANK.NS', 'KOTAKBANK.NS', 'BHARTIARTL.NS', 'ITC.NS', 'LT.NS',
+            'AXISBANK.NS', 'ASIANPAINT.NS', 'MARUTI.NS', 'SUNPHARMA.NS', 'TITAN.NS',
+            'ULTRACEMCO.NS', 'NESTLEIND.NS', 'BAJFINANCE.NS', 'WIPRO.NS', 'ONGC.NS',
+            'NTPC.NS', 'POWERGRID.NS', 'TECHM.NS', 'HCLTECH.NS', 'SBIN.NS',
+            'ADANIPORTS.NS', 'COALINDIA.NS', 'TATASTEEL.NS', 'GRASIM.NS', 'JSWSTEEL.NS',
+            'INDUSINDBK.NS', 'BAJAJFINSV.NS', 'M&M.NS', 'DRREDDY.NS', 'CIPLA.NS',
+            'EICHERMOT.NS', 'APOLLOHOSP.NS', 'DIVISLAB.NS', 'BRITANNIA.NS', 'TATACONSUM.NS',
+            'HEROMOTOCO.NS', 'SHREECEM.NS', 'HINDALCO.NS', 'BPCL.NS', 'TATAMOTORS.NS',
+
+            # NIFTY Next 50
+            'ADANIENT.NS', 'BAJAJ-AUTO.NS', 'BANDHANBNK.NS', 'BERGEPAINT.NS', 'BIOCON.NS',
+            'BOSCHLTD.NS', 'CADILAHC.NS', 'CHOLAFIN.NS', 'COLPAL.NS', 'CONCOR.NS',
+            'DALBHARAT.NS', 'DEEPAKNTR.NS', 'DIVI.NS', 'GAIL.NS', 'GODREJCP.NS',
+            'HAVELLS.NS', 'HDFCAMC.NS', 'HDFCLIFE.NS', 'ICICIPRULI.NS', 'IDEA.NS',
+            'INDUSTOWER.NS', 'IOC.NS', 'IRCTC.NS', 'JINDALSTEL.NS', 'LICHSGFIN.NS',
+            'LUPIN.NS', 'MARICO.NS', 'MCDOWELL-N.NS', 'MOTHERSUMI.NS', 'MPHASIS.NS',
+            'MRF.NS', 'NAUKRI.NS', 'NMDC.NS', 'OFSS.NS', 'PAGEIND.NS',
+            'PEL.NS', 'PIDILITIND.NS', 'PIRAMALENT.NS', 'PNB.NS', 'PVR.NS',
+            'RAMCOCEM.NS', 'SBILIFE.NS', 'SIEMENS.NS', 'SRF.NS', 'TORNTPHARM.NS',
+            'TRENT.NS', 'TVSMOTOR.NS', 'UBL.NS', 'VEDL.NS', 'VOLTAS.NS',
+
+            # Additional NIFTY 500 stocks
+            'ABBOTINDIA.NS', 'ABCAPITAL.NS', 'ABFRL.NS', 'ACC.NS', 'AFFLE.NS',
+            'AJANTPHARM.NS', 'ALKEM.NS', 'AMBUJACEM.NS', 'APOLLOTYRE.NS', 'ASHOKLEY.NS',
+            'ASTRAL.NS', 'ATUL.NS', 'AUBANK.NS', 'AUROPHARMA.NS', 'BALKRISIND.NS',
+            'BALRAMCHIN.NS', 'BANKBARODA.NS', 'BATAINDIA.NS', 'BEL.NS', 'BHARATFORG.NS',
+            'BHARTIHEXA.NS', 'BHEL.NS', 'BIOCON.NS', 'BLUEDART.NS', 'BSOFT.NS',
+            'CANBK.NS', 'CANFINHOME.NS', 'CASTROLIND.NS', 'CEATLTD.NS', 'CENTURYTEX.NS',
+            'CESCLTD.NS', 'CHAMBLFERT.NS', 'CHOLAHLDNG.NS', 'CLEAN.NS', 'COFORGE.NS',
+            'COROMANDEL.NS', 'CROMPTON.NS', 'CUB.NS', 'CUMMINSIND.NS', 'DABUR.NS',
+            'DELTACORP.NS', 'DHANI.NS', 'DIXON.NS', 'DLF.NS', 'DRREDDY.NS',
+            'EICHERMOT.NS', 'ESCORTS.NS', 'EXIDEIND.NS', 'FEDERALBNK.NS', 'FORTIS.NS',
+            'FSL.NS', 'GICRE.NS', 'GILLETTE.NS', 'GLAXO.NS', 'GMRINFRA.NS',
+            'GNFC.NS', 'GODFREJIND.NS', 'GRANULES.NS', 'GRAPHITE.NS', 'GSPL.NS',
+            'GUJGASLTD.NS', 'HAL.NS', 'HATSUN.NS', 'HDFCBANK.NS', 'HEIDELBERG.NS',
+            'HINDPETRO.NS', 'HINDUNILVR.NS', 'HONAUT.NS', 'HUDCO.NS', 'IBULHSGFIN.NS',
+            'IDFCFIRSTB.NS', 'IEX.NS', 'IFCI.NS', 'IGL.NS', 'INDHOTEL.NS',
+            'INDIAMART.NS', 'INDIGO.NS', 'INDUSINDBK.NS', 'INFIBEAM.NS', 'INFY.NS',
+            'INTELLECT.NS', 'IOB.NS', 'IPCALAB.NS', 'IRB.NS', 'ISEC.NS',
+            'ITI.NS', 'JBCHEPHARM.NS', 'JKCEMENT.NS', 'JKLAKSHMI.NS', 'JMFINANCIL.NS',
+            'JSWENERGY.NS', 'JUBLFOOD.NS', 'JUSTDIAL.NS', 'KANSAINER.NS', 'KEI.NS',
+            'KPITTECH.NS', 'KRBL.NS', 'L&TFH.NS', 'LALPATHLAB.NS', 'LAURUSLABS.NS',
+            'LEMONTREE.NS', 'LICI.NS', 'LTTS.NS', 'MANAPPURAM.NS', 'MFSL.NS',
+            'MINDTREE.NS', 'MIDHANI.NS', 'MMTC.NS', 'MOIL.NS', 'MPHASIS.NS',
+            'MUTHOOTFIN.NS', 'NATIONALUM.NS', 'NAUKRI.NS', 'NAVINFLUOR.NS', 'NBCC.NS',
+            'NCC.NS', 'NESTLEIND.NS', 'NIACL.NS', 'NLCINDIA.NS', 'NOCIL.NS',
+            'NYKAA.NS', 'OBEROIRLTY.NS', 'ONGC.NS', 'ORIENTBANK.NS', 'PAYTM.NS',
+            'PERSISTENT.NS', 'PETRONET.NS', 'PFIZER.NS', 'PHOENIXLTD.NS', 'POLYMED.NS',
+            'POLYCAB.NS', 'PVRINOX.NS', 'QUESS.NS', 'RAIN.NS', 'RAJESHEXPO.NS',
+            'RBLBANK.NS', 'RECLTD.NS', 'REDINGTON.NS', 'RELAXO.NS', 'RITES.NS',
+            'ROUTE.NS', 'SAIL.NS', 'SANOFI.NS', 'SCHAEFFLER.NS', 'SEQUENT.NS',
+            'SFL.NS', 'SHANKARA.NS', 'SHILPAMED.NS', 'SHOPERSTOP.NS', 'SJVN.NS',
+            'SKFINDIA.NS', 'SOBHA.NS', 'SOLARINDS.NS', 'SONACOMS.NS', 'STARHEALTH.NS',
+            'STARCEMENT.NS', 'SUBEXLTD.NS', 'SUNDARMFIN.NS', 'SUNDRMFAST.NS', 'SUPREMEIND.NS',
+            'SYNGENE.NS', 'TATACHEM.NS', 'TATACOMM.NS', 'TATAELXSI.NS', 'TATAINVEST.NS',
+            'TATAPOWER.NS', 'TECHM.NS', 'THERMAX.NS', 'THOMASCOOK.NS', 'TIINDIA.NS',
+            'TIMKEN.NS', 'TORNTPOWER.NS', 'TTKPRESTIG.NS', 'UJJIVAN.NS', 'ULTRACEMCO.NS',
+            'UNIONBANK.NS', 'UPL.NS', 'VAKRANGEE.NS', 'VGUARD.NS', 'VINATIORGA.NS',
+            'VIPIND.NS', 'VMART.NS', 'WHIRLPOOL.NS', 'WIPRO.NS', 'WOCKPHARMA.NS',
+            'YESBANK.NS', 'ZEEL.NS', 'ZENSARTECH.NS', 'ZYDUSLIFE.NS'
+        ]
+
+    def fetch_stock_data(self, symbol):
+        """Fetch stock data for a given symbol"""
+        try:
+            stock = yf.Ticker(symbol)
+            data = stock.history(start=self.start_date, end=self.end_date)
+            if data.empty:
+                return None
+
+            # Calculate daily returns
+            data['Daily_Return_Pct'] = ((data['Close'] - data['Open']) / data['Open']) * 100
+
+            # Calculate position within daily range
+            data['High_Low_Range'] = data['High'] - data['Low']
+            data['Close_to_High'] = np.where(data['High_Low_Range'] > 0,
+                                           (data['High'] - data['Close']) / data['High_Low_Range'], 0)
+            data['Close_to_Low'] = np.where(data['High_Low_Range'] > 0,
+                                          (data['Close'] - data['Low']) / data['High_Low_Range'], 0)
+
+            # Calculate rolling averages for volume (20-day)
+            data['Avg_Volume_20d'] = data['Volume'].rolling(window=20).mean()
+            data['Volume_Ratio'] = data['Volume'] / data['Avg_Volume_20d']
+
+            return data
+
+        except Exception as e:
+            return None
+
+    def analyze_stock_movement(self, data, symbol):
+        """Analyze stock for the specified criteria"""
+        if data is None or data.empty:
+            return []
+
+        results = []
+
+        for date, row in data.iterrows():
+            daily_return = row['Daily_Return_Pct']
+            volume_ratio = row['Volume_Ratio']
+            close_to_high = row['Close_to_High']
+            close_to_low = row['Close_to_Low']
+
+            # Skip if we don't have enough data for volume average
+            if pd.isna(volume_ratio) or pd.isna(daily_return):
+                continue
+
+            # Check if movement is between 3-5% (positive or negative)
+            if abs(daily_return) >= 3.0 and abs(daily_return) <= 5.0:
+
+                # For positive movement: check if close is near day high
+                if daily_return > 0 and close_to_high <= 0.15:  # Within 15% of high
+                    results.append({
+                        'Symbol': symbol.replace('.NS', ''),
+                        'Date': date.strftime('%Y-%m-%d'),
+                        'Type': 'UP',
+                        'Move%': round(daily_return, 2),
+                        'Open': round(row['Open'], 2),
+                        'High': round(row['High'], 2),
+                        'Low': round(row['Low'], 2),
+                        'Close': round(row['Close'], 2),
+                        'Close_Pos': f"{round((1-close_to_high)*100, 1)}% from High",
+                        'Volume': int(row['Volume']),
+                        'Avg_Vol': int(row['Avg_Volume_20d']),
+                        'Vol_Ratio': round(volume_ratio, 2),
+                        'Vol_Change': f"{round((volume_ratio-1)*100, 1)}%"
+                    })
+
+                # For negative movement: check if close is near day low
+                elif daily_return < 0 and close_to_low <= 0.15:  # Within 15% of low
+                    results.append({
+                        'Symbol': symbol.replace('.NS', ''),
+                        'Date': date.strftime('%Y-%m-%d'),
+                        'Type': 'DOWN',
+                        'Move%': round(daily_return, 2),
+                        'Open': round(row['Open'], 2),
+                        'High': round(row['High'], 2),
+                        'Low': round(row['Low'], 2),
+                        'Close': round(row['Close'], 2),
+                        'Close_Pos': f"{round(close_to_low*100, 1)}% from Low",
+                        'Volume': int(row['Volume']),
+                        'Avg_Vol': int(row['Avg_Volume_20d']),
+                        'Vol_Ratio': round(volume_ratio, 2),
+                        'Vol_Change': f"{round((volume_ratio-1)*100, 1)}%"
+                    })
+
+        return results
+
+    def run_analysis(self):
+        """Run the complete analysis and return tabular results"""
+        all_results = []
+        total_stocks = len(self.nifty500_stocks)
+        processed = 0
+
+        print(f"🔍 Analyzing {total_stocks} NIFTY 500 stocks from {self.start_date}")
+        print("📊 Looking for 3-5% moves with closes near day extremes...")
+        print("⏳ Please wait, this may take a few minutes...\n")
+
+        for symbol in self.nifty500_stocks:
+            processed += 1
+            if processed % 50 == 0:
+                print(f"✅ Processed {processed}/{total_stocks} stocks...")
+
+            data = self.fetch_stock_data(symbol)
+            if data is not None:
+                results = self.analyze_stock_movement(data, symbol)
+                all_results.extend(results)
+
+        print(f"✅ Analysis complete! Processed {processed} stocks.\n")
+
+        if not all_results:
+            print("❌ No stocks found matching the criteria.")
+            return pd.DataFrame()
+
+        df = pd.DataFrame(all_results)
+        df = df.sort_values(['Date', 'Vol_Ratio'], ascending=[False, False])
+
+        return df
+
+    def display_results(self, df):
+        """Display results in a clean tabular format"""
+        if df.empty:
+            print("No results to display.")
+            return
+
+        print("="*120)
+        print("🎯 NIFTY 500 STOCKS: 3-5% MOVES WITH CLOSES NEAR EXTREMES")
+        print("="*120)
+
+        # Set pandas display options for better table formatting
+        pd.set_option('display.max_columns', None)
+        pd.set_option('display.width', None)
+        pd.set_option('display.max_colwidth', 15)
+
+        # Display summary stats
+        total_instances = len(df)
+        up_moves = len(df[df['Type'] == 'UP'])
+        down_moves = len(df[df['Type'] == 'DOWN'])
+        unique_stocks = df['Symbol'].nunique()
+        high_vol_instances = len(df[df['Vol_Ratio'] >= 2.0])
+
+        print(f"📈 SUMMARY:")
+        print(f"   Total Instances: {total_instances}")
+        print(f"   Up Moves: {up_moves} | Down Moves: {down_moves}")
+        print(f"   Unique Stocks: {unique_stocks}")
+        print(f"   High Volume Days (>2x): {high_vol_instances}")
+        print(f"   Date Range: {df['Date'].min()} to {df['Date'].max()}")
+        print("\n")
+
+        # Display recent results (last 30 days)
+        recent_df = df.head(50)  # Show top 50 most recent
+
+        print("🔥 TOP 50 RECENT OCCURRENCES:")
+        print("-"*120)
+
+        # Create a formatted display
+        display_df = recent_df[['Symbol', 'Date', 'Type', 'Move%', 'Open', 'High', 'Low', 'Close', 'Close_Pos', 'Vol_Ratio', 'Vol_Change']].copy()
+
+        # Format the dataframe for better display
+        print(display_df.to_string(index=False, max_rows=50))
+
+        # High volume instances
+        print("\n" + "="*120)
+        print("🚀 HIGH VOLUME INSTANCES (Volume > 2x Average):")
+        print("="*120)
+
+        high_vol_df = df[df['Vol_Ratio'] >= 2.0].head(20)
+        if not high_vol_df.empty:
+            high_vol_display = high_vol_df[['Symbol', 'Date', 'Type', 'Move%', 'Close_Pos', 'Vol_Ratio', 'Vol_Change']].copy()
+            print(high_vol_display.to_string(index=False))
+        else:
+            print("No high volume instances found.")
+
+        # Stock-wise summary
+        print("\n" + "="*120)
+        print("📊 STOCK-WISE SUMMARY (Top 20 by frequency):")
+        print("="*120)
+
+        stock_summary = df.groupby('Symbol').agg({
+            'Date': 'count',
+            'Type': lambda x: f"{sum(x=='UP')}↑/{sum(x=='DOWN')}↓",
+            'Vol_Ratio': 'mean',
+            'Move%': ['mean', 'std']
+        }).round(2)
+
+        stock_summary.columns = ['Count', 'Up/Down', 'Avg_Vol_Ratio', 'Avg_Move%', 'Move_Std']
+        stock_summary = stock_summary.sort_values('Count', ascending=False).head(20)
+        print(stock_summary.to_string())
+
+        # Save to CSV
+        filename = f'nifty500_analysis_{datetime.now().strftime("%Y%m%d_%H%M")}.csv'
+        df.to_csv(filename, index=False)
+        print(f"\n💾 Full results saved to: {filename}")
+
+        return df
+
+def main():
+    """Main execution function"""
+    print("🚀 NIFTY 500 Stock Pattern Analysis")
+    print("="*50)
+
+    # Initialize analyzer
+    analyzer = NSEStockAnalyzer(start_date='2022-01-01')
+
+    # Run analysis
+    results_df = analyzer.run_analysis()
+
+    # Display results in tabular format
+    analyzer.display_results(results_df)
+
+    return results_df
+
+if __name__ == "__main__":
+    results = main()
